@@ -9,8 +9,10 @@ final class UsageViewModel {
     // nonisolated 化する。providers 自体は immutable なので Sendable 違反は起きない。
     private nonisolated let claudeProvider: UsageProvider
     private nonisolated let codexProvider: UsageProvider
+    private let store: AccountUsageStore
 
-    var snapshot: UsageSnapshot = .empty
+    /// 表示用の使用状況。取得に失敗しても、覚えているアカウントの値はそのまま残す。
+    var snapshot: UsageSnapshot
     var isLoading: Bool = false
     var pollingInterval: PollingInterval {
         didSet { persistInterval() }
@@ -18,10 +20,18 @@ final class UsageViewModel {
 
     init(
         claudeProvider: UsageProvider = ClaudeUsageProvider(),
-        codexProvider: UsageProvider = CodexUsageProvider()
+        codexProvider: UsageProvider = CodexUsageProvider(),
+        store: AccountUsageStore = AccountUsageStore()
     ) {
         self.claudeProvider = claudeProvider
         self.codexProvider = codexProvider
+        self.store = store
+        // 起動直後は覚えている値を出しておき、最初の取得完了で更新する。
+        self.snapshot = UsageSnapshot(
+            claude: ServiceState(accounts: store.load(.claude)),
+            codex: ServiceState(accounts: store.load(.codex)),
+            fetchedAt: .distantPast
+        )
         self.pollingInterval = Self.loadPersistedInterval()
     }
 
@@ -56,29 +66,38 @@ final class UsageViewModel {
         isLoading = true
         defer { isLoading = false }
 
-        async let claude = fetchClaude()
-        async let codex = fetchCodex()
+        async let claude = fetch(from: claudeProvider, logger: .claude)
+        async let codex = fetch(from: codexProvider, logger: .codex)
 
         let (c, x) = await (claude, codex)
-        snapshot = UsageSnapshot(claude: c, codex: x, fetchedAt: Date())
+        snapshot = UsageSnapshot(
+            claude: apply(c, to: snapshot.claude, for: .claude),
+            codex: apply(x, to: snapshot.codex, for: .codex),
+            fetchedAt: Date()
+        )
     }
 
-    private func fetchClaude() async -> Result<ServiceUsage, DomainError> {
-        do {
-            return .success(try await claudeProvider.fetch())
-        } catch let err as DomainError {
-            Logger.claude.error("fetch failed: \(err.localizedDescription)")
-            return .failure(err)
-        } catch {
-            return .failure(.network(error.localizedDescription))
+    /// 成功したらそのアカウントを先頭に上書きして保存する。失敗したら覚えている値は残してエラーだけ記録する。
+    private func apply(
+        _ result: Result<AccountUsage, DomainError>,
+        to state: ServiceState,
+        for brand: ServiceBrand
+    ) -> ServiceState {
+        switch result {
+        case .success(let account):
+            let accounts = [account] + state.accounts.filter { $0.email != account.email }
+            store.save(accounts, for: brand)
+            return ServiceState(accounts: accounts, error: nil)
+        case .failure(let error):
+            return ServiceState(accounts: state.accounts, error: error)
         }
     }
 
-    private func fetchCodex() async -> Result<ServiceUsage, DomainError> {
+    private func fetch(from provider: UsageProvider, logger: Logger) async -> Result<AccountUsage, DomainError> {
         do {
-            return .success(try await codexProvider.fetch())
+            return .success(try await provider.fetch())
         } catch let err as DomainError {
-            Logger.codex.error("fetch failed: \(err.localizedDescription)")
+            logger.error("fetch failed: \(err.localizedDescription)")
             return .failure(err)
         } catch {
             return .failure(.network(error.localizedDescription))
@@ -87,28 +106,12 @@ final class UsageViewModel {
 
     // MARK: - ログインボタン
 
-    /// どのサービスを再ログインするかは enum 型で表現する。
-    /// 任意文字列を AppleScript に渡せないようにしてインジェクションを「型として」不能にする。
-    enum LoginTarget {
-        case claude
-        case codex
-
-        var command: String {
-            switch self {
-            case .claude: return "claude login"
-            case .codex:  return "codex login"
-            }
-        }
-    }
-
-    func openClaudeLogin() { spawnLogin(.claude) }
-    func openCodexLogin()  { spawnLogin(.codex) }
-
-    private func spawnLogin(_ target: LoginTarget) {
+    /// ターミナルを開いて `brand.loginCommand` を実行する。
+    func openLogin(_ brand: ServiceBrand) {
         let script = """
         tell application "Terminal"
             activate
-            do script "\(target.command)"
+            do script "\(brand.loginCommand)"
         end tell
         """
         let process = Process()

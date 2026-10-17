@@ -5,104 +5,59 @@ struct UsagePopoverView: View {
     @Bindable var viewModel: UsageViewModel
     @Bindable var languageStore: LanguageStore
     @ObservedObject var launchAtLogin: LaunchAtLoginStore
+    @State private var isShowingSettings = false
 
     private var language: AppLanguage { languageStore.selectedLanguage }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            header
-
-            ServiceSectionView(
-                title: "Claude Code",
-                brand: .claude,
-                result: viewModel.snapshot.claude,
-                language: language,
-                loginAction: { viewModel.openClaudeLogin() }
-            )
-
+            serviceSection(.claude)
             Divider()
+            serviceSection(.codex)
 
-            ServiceSectionView(
-                title: "Codex",
-                brand: .codex,
-                result: viewModel.snapshot.codex,
-                language: language,
-                loginAction: { viewModel.openCodexLogin() }
-            )
-
-            Divider()
-            settingsBlock
             Divider()
             footer
         }
         .padding(16)
         .frame(width: 320)
-    }
-
-    private var header: some View {
-        HStack {
-            Text("Token Checker")
-                .font(.system(size: 14, weight: .semibold))
-            Spacer()
+        .sheet(isPresented: $isShowingSettings) {
+            SettingsView(
+                viewModel: viewModel,
+                languageStore: languageStore,
+                launchAtLogin: launchAtLogin
+            )
         }
     }
 
-    private var settingsBlock: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(L10n.tr("settings.refresh_interval", language: language))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Picker("", selection: $viewModel.pollingInterval) {
-                    ForEach(PollingInterval.allCases) { interval in
-                        Text(interval.label(language: language)).tag(interval)
-                    }
-                }
-                .labelsHidden()
-                .fixedSize()
-            }
+    private func serviceSection(_ brand: ServiceBrand) -> some View {
+        ServiceSectionView(
+            brand: brand,
+            state: viewModel.snapshot.state(for: brand),
+            language: language,
+            loginAction: { viewModel.openLogin(brand) }
+        )
+    }
 
-            HStack {
-                Text(L10n.tr("settings.language", language: language))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Picker("", selection: $languageStore.selectedLanguage) {
-                    ForEach(AppLanguage.allCases) { option in
-                        Text(L10n.tr(option.displayKey, language: option)).tag(option)
-                    }
-                }
-                .labelsHidden()
-                .fixedSize()
-            }
-
-            HStack {
-                Text(L10n.tr("settings.launch_at_login", language: language))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Toggle("", isOn: Binding(
-                    get: { launchAtLogin.isEnabled },
-                    set: { _ in launchAtLogin.toggle() }
-                ))
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .controlSize(.mini)
-            }
+    /// 「更新: 5:13」。取得に失敗したサービスがあれば「(更新エラー)」を付け、詳細はツールチップに出す。
+    private var updatedAtLabel: some View {
+        let time = L10n.shortTime(viewModel.snapshot.fetchedAt, language: language)
+        var text = L10n.format("footer.updated_at", language: language, time)
+        let errors = [ServiceBrand.claude, .codex].compactMap { brand in
+            viewModel.snapshot.state(for: brand).error.map { "\(brand.title): \($0.localizedDescription(language: language))" }
         }
+        if !errors.isEmpty {
+            text += " " + L10n.tr("footer.update_error", language: language)
+        }
+        return Text(text)
+            .font(.system(size: 10))
+            .foregroundStyle(.tertiary)
+            .help(errors.joined(separator: "\n"))
     }
 
     private var footer: some View {
         HStack {
             if viewModel.snapshot.fetchedAt > .distantPast {
-                Text(L10n.format(
-                    "footer.updated_at",
-                    language: language,
-                    formattedTime(viewModel.snapshot.fetchedAt)
-                ))
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
+                updatedAtLabel
             }
             Spacer()
             Button {
@@ -117,19 +72,19 @@ struct UsagePopoverView: View {
             .buttonStyle(.borderless)
             .help(L10n.tr("footer.refresh_now", language: language))
 
+            Button {
+                isShowingSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+            }
+            .buttonStyle(.borderless)
+            .help(L10n.tr("settings.title", language: language))
+
             Button(L10n.tr("footer.quit", language: language)) {
                 NSApplication.shared.terminate(nil)
             }
             .buttonStyle(.borderless)
             .foregroundStyle(.secondary)
         }
-    }
-
-    private func formattedTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = language.locale
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
     }
 }

@@ -1,8 +1,9 @@
 import Foundation
 
-/// Anthropic の OAuth ベース usage エンドポイントを叩いて生 DTO を返す。
+/// Anthropic の OAuth エンドポイント (usage / profile) を叩いて生 DTO を返す。
 struct AnthropicUsageAPIClient: Sendable {
     static let usageURL = URL(string: "https://api.anthropic.com/api/oauth/usage")!
+    static let profileURL = URL(string: "https://api.anthropic.com/api/oauth/profile")!
 
     /// Bearer トークンを保持したまま追従先へ再送されるのを防ぐため、
     /// 専用 URLSession にリダイレクト不許可のデリゲートを噛ませる。
@@ -20,7 +21,17 @@ struct AnthropicUsageAPIClient: Sendable {
     }()
 
     func fetch(accessToken: String) async throws -> AnthropicUsageDTO {
-        var request = URLRequest(url: Self.usageURL)
+        try await get(Self.usageURL, accessToken: accessToken, label: "Anthropic usage")
+    }
+
+    /// トークンの持ち主のメールアドレス。使用率と同じトークンで引くので、取り違えが起きない。
+    func fetchEmail(accessToken: String) async throws -> String {
+        let profile: AnthropicProfileDTO = try await get(Self.profileURL, accessToken: accessToken, label: "Anthropic profile")
+        return profile.account.email
+    }
+
+    private func get<T: Decodable>(_ url: URL, accessToken: String, label: String) async throws -> T {
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
@@ -43,8 +54,8 @@ struct AnthropicUsageAPIClient: Sendable {
             throw DomainError.anthropicUnauthorized
         case 429:
             // Retry-After ヘッダがあれば秒数を取り出してユーザに伝える
-            let retryAfter = (http.value(forHTTPHeaderField: "Retry-After")
-                              ?? http.value(forHTTPHeaderField: "retry-after"))
+            // (value(forHTTPHeaderField:) はヘッダ名の大文字小文字を区別しない)
+            let retryAfter = http.value(forHTTPHeaderField: "Retry-After")
                 .flatMap(TimeInterval.init)
             throw DomainError.anthropicRateLimited(retryAfter: retryAfter)
         default:
@@ -52,9 +63,9 @@ struct AnthropicUsageAPIClient: Sendable {
         }
 
         do {
-            return try JSONDecoder().decode(AnthropicUsageDTO.self, from: data)
+            return try JSONDecoder().decode(T.self, from: data)
         } catch {
-            throw DomainError.decoding("Anthropic usage: \(error.localizedDescription)")
+            throw DomainError.decoding("\(label): \(error.localizedDescription)")
         }
     }
 }
@@ -101,6 +112,14 @@ struct AnthropicUsageDTO: Decodable, Sendable {
             case utilization
             case resetsAt = "resets_at"
         }
+    }
+}
+
+struct AnthropicProfileDTO: Decodable, Sendable {
+    let account: Account
+
+    struct Account: Decodable, Sendable {
+        let email: String
     }
 }
 

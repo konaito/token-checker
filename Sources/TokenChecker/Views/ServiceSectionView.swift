@@ -1,26 +1,19 @@
 import SwiftUI
 
 /// Claude / Codex 1 サービスぶんの詳細セクション。
-/// どのブランドのセクションかを表す。
-enum ServiceBrand {
-    case claude
-    case codex
-}
-
 struct ServiceSectionView: View {
-    let title: String
     let brand: ServiceBrand
-    let result: Result<ServiceUsage, DomainError>?
+    let state: ServiceState
     let language: AppLanguage
     let loginAction: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                brandMark
+                Image(systemName: brand.symbolName)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary)
-                Text(title)
+                Text(brand.title)
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Button {
@@ -29,20 +22,67 @@ struct ServiceSectionView: View {
                     Image(systemName: "person.badge.key")
                 }
                 .buttonStyle(.borderless)
-                .help(L10n.format("service.login.help", language: language, title))
+                .help(L10n.format("service.login.help", language: language, brand.title))
             }
 
-            switch result {
-            case .none:
+            if let active = state.active {
+                HStack(spacing: 4) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9, weight: .bold))
+                    Text(active.email)
+                        .font(.system(size: 11, weight: .medium))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .foregroundStyle(.secondary)
+                usageBlock(active.usage)
+                if state.accounts.count > 1 {
+                    Divider().opacity(0.5)
+                    ForEach(state.accounts.dropFirst()) { account in
+                        inactiveRow(account)
+                    }
+                }
+            } else if let error = state.error {
+                errorBlock(error)
+            } else {
                 Text(L10n.tr("status.loading", language: language))
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
-            case .some(.success(let usage)):
-                usageBlock(usage)
-            case .some(.failure(let err)):
-                errorBlock(err)
             }
         }
+    }
+
+    /// 過去にアクティブだったアカウント。最後に取得できた値を 1 行で出す。
+    private func inactiveRow(_ account: AccountUsage) -> some View {
+        HStack {
+            Text(account.email)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+            Text(summary(account.usage))
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+        }
+        .help(L10n.format("account.fetched_at", language: language, L10n.shortDateTime(account.fetchedAt, language: language)))
+    }
+
+    /// 「5時間 28% · 週次 26%」。リセット時刻を過ぎた枠は古い値を出さず「リセット済」にする。
+    private func summary(_ usage: ServiceUsage) -> String {
+        let windows: [(String, RateLimit?)] = [
+            (L10n.tr("window.five_hour", language: language), usage.fiveHour),
+            (L10n.tr("window.weekly", language: language), usage.weekly),
+        ]
+        return windows.map { label, limit in
+            guard let limit else { return "\(label) –" }
+            if limit.resetsAt <= Date() {
+                return "\(label) \(L10n.tr("account.reset_done", language: language))"
+            }
+            return "\(label) \(limit.percent)%"
+        }
+        .joined(separator: " · ")
     }
 
     @ViewBuilder
@@ -64,20 +104,18 @@ struct ServiceSectionView: View {
     }
 
     private func limitRow(label: String, limit: RateLimit) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(label)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(limit.percent)%")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(color(for: limit.utilization))
-            }
-            ProgressBarView(value: limit.utilization)
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text("\(limit.percent)%")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color.usage(limit.utilization))
+            Text("/ \(label)")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            Spacer()
             Text(resetLabel(limit.resetsAt))
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
+                .lineLimit(1)
         }
     }
 
@@ -89,7 +127,7 @@ struct ServiceSectionView: View {
             Spacer()
             Text("\(limit.percent)%")
                 .font(.system(size: 11))
-                .foregroundStyle(color(for: limit.utilization))
+                .foregroundStyle(Color.usage(limit.utilization))
         }
     }
 
@@ -111,22 +149,6 @@ struct ServiceSectionView: View {
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
-    @ViewBuilder
-    private var brandMark: some View {
-        switch brand {
-        case .claude:
-            Image(systemName: "sparkles")
-        case .codex:
-            Image(systemName: "terminal.fill")
-        }
-    }
-
-    private func color(for value: Double) -> Color {
-        if value < 0.7 { return .green }
-        if value < 0.85 { return .orange }
-        return .red
-    }
-
     private func resetLabel(_ date: Date) -> String {
         let now = Date()
         if date <= now { return L10n.tr("reset.soon", language: language) }
@@ -137,11 +159,7 @@ struct ServiceSectionView: View {
         f.allowedUnits = [.hour, .minute]
         f.unitsStyle = .abbreviated
         let rel = f.string(from: now, to: date) ?? "—"
-        let formatter = DateFormatter()
-        formatter.locale = language.locale
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-        let absolute = formatter.string(from: date)
+        let absolute = L10n.shortTime(date, language: language)
         return L10n.format("reset.remaining", language: language, rel, absolute)
     }
 }

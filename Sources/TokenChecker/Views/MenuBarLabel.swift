@@ -18,32 +18,14 @@ struct MenuBarLabel: View {
     }
 
     private var renderedImage: NSImage? {
-        let claude = utilization(from: viewModel.snapshot.claude)
-        let codex = utilization(from: viewModel.snapshot.codex)
         let content = HStack(spacing: 6) {
-            HStack(spacing: 3) {
-                DonutChartView(
-                    value: claude ?? 0,
-                    size: 20,
-                    lineWidth: 3,
-                    center: .sfSymbol("sparkles", scale: 0.48)
-                )
-                Text(percentLabel(claude))
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            HStack(spacing: 3) {
-                DonutChartView(
-                    value: codex ?? 0,
-                    size: 20,
-                    lineWidth: 3,
-                    center: .sfSymbol("terminal.fill", scale: 0.48)
-                )
-                Text(percentLabel(codex))
-                    .font(.system(size: 11, weight: .semibold))
-            }
+            item(for: .claude)
+            item(for: .codex)
         }
         .padding(.horizontal, 2)
-        .foregroundStyle(Color.primary)
+        // ImageRenderer はメニューバーの外観を引き継がずライトモードの黒で焼くため、
+        // 暗いメニューバーで見えるよう白に固定する。
+        .foregroundStyle(Color.white)
 
         let renderer = ImageRenderer(content: content)
         // ビットマップは高 DPI で焼いておく．image.size には触らない
@@ -55,9 +37,13 @@ struct MenuBarLabel: View {
         return image
     }
 
-    private func utilization(from result: Result<ServiceUsage, DomainError>?) -> Double? {
-        guard case .success(let usage) = result else { return nil }
-        return usage.fiveHour?.utilization
+    private func item(for brand: ServiceBrand) -> some View {
+        let value = viewModel.snapshot.state(for: brand).active?.usage.fiveHour?.utilization
+        return HStack(spacing: 3) {
+            DonutChartView(value: value ?? 0, size: 20, lineWidth: 3, symbolName: brand.symbolName)
+            Text(percentLabel(value))
+                .font(.system(size: 11, weight: .semibold))
+        }
     }
 
     private func percentLabel(_ value: Double?) -> String {
