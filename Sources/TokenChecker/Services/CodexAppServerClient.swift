@@ -161,6 +161,22 @@ actor CodexAppServerClient {
         }
     }
 
+    /// 現在ログインしているアカウントの識別名。ChatGPT ログインならメールアドレス、
+    /// それ以外 (API キー等) は認証方式の名前を返す。
+    func readAccountName() async throws -> String {
+        let envelope = try await request(method: "account/read", params: EmptyParams())
+        guard let result = envelope.result else {
+            throw DomainError.codexRPCError(message: "missing result for account/read")
+        }
+        let dto: CodexAccountDTO
+        do {
+            dto = try result.decode(as: CodexAccountDTO.self)
+        } catch {
+            throw DomainError.decoding("codex account: \(error.localizedDescription)")
+        }
+        return dto.account?.email ?? dto.account?.type ?? "unknown"
+    }
+
     // MARK: - Internals
 
     /// codex バイナリの絶対パスを決定する。
@@ -512,6 +528,16 @@ struct InitializeParams: Encodable, Sendable {
         clientInfo: .init(name: "token-checker", version: "0.1.0"),
         capabilities: .init()
     )
+}
+
+/// `account/read` のレスポンス。`email` は ChatGPT ログイン (`type == "chatgpt"`) のときだけ入る。
+struct CodexAccountDTO: Decodable, Sendable {
+    let account: Account?
+
+    struct Account: Decodable, Sendable {
+        let type: String?
+        let email: String?
+    }
 }
 
 /// `account/rateLimits/read` のレスポンス。

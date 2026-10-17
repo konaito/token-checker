@@ -38,17 +38,12 @@ struct MenuBarLabel: View {
     }
 
     private func item(for brand: ServiceBrand) -> some View {
-        let value = utilization(from: viewModel.snapshot.result(for: brand))
+        let value = viewModel.snapshot.state(for: brand).active?.usage.fiveHour?.utilization
         return HStack(spacing: 3) {
             DonutChartView(value: value ?? 0, size: 20, lineWidth: 3, symbolName: brand.symbolName)
             Text(percentLabel(value))
                 .font(.system(size: 11, weight: .semibold))
         }
-    }
-
-    private func utilization(from result: Result<ServiceUsage, DomainError>?) -> Double? {
-        guard case .success(let usage) = result else { return nil }
-        return usage.fiveHour?.utilization
     }
 
     private func percentLabel(_ value: Double?) -> String {

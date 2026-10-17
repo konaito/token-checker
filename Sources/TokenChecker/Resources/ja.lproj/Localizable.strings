@@ -1,3 +1,5 @@
+"account.fetched_at" = "取得: %@";
+"account.reset_done" = "リセット済";
 "error.anthropic_http" = "Anthropic API エラー (status %d)";
 "error.anthropic_rate_limited" = "Anthropic API のレート制限 (429)。次回ポーリングまで待機します。";
 "error.anthropic_rate_limited_with_retry" = "Anthropic API のレート制限に達しました。約 %d 分後に自動で再試行します。";

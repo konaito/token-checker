@@ -9,12 +9,10 @@ final class UsageViewModel {
     // nonisolated 化する。providers 自体は immutable なので Sendable 違反は起きない。
     private nonisolated let claudeProvider: UsageProvider
     private nonisolated let codexProvider: UsageProvider
-    private let cache: UsageCache
+    private let store: AccountUsageStore
 
-    /// 表示用の使用状況。取得に失敗したサービスは前回取得できた値で埋める。
+    /// 表示用の使用状況。取得に失敗しても、覚えているアカウントの値はそのまま残す。
     var snapshot: UsageSnapshot
-    /// 直近の更新で取得に失敗したサービスとそのエラー。
-    var refreshErrors: [ServiceBrand: DomainError] = [:]
     var isLoading: Bool = false
     var pollingInterval: PollingInterval {
         didSet { persistInterval() }
@@ -23,15 +21,15 @@ final class UsageViewModel {
     init(
         claudeProvider: UsageProvider = ClaudeUsageProvider(),
         codexProvider: UsageProvider = CodexUsageProvider(),
-        cache: UsageCache = UsageCache()
+        store: AccountUsageStore = AccountUsageStore()
     ) {
         self.claudeProvider = claudeProvider
         self.codexProvider = codexProvider
-        self.cache = cache
-        // 起動直後は前回の値を出しておき、最初の取得完了で置き換える。
+        self.store = store
+        // 起動直後は覚えている値を出しておき、最初の取得完了で更新する。
         self.snapshot = UsageSnapshot(
-            claude: cache.load(.claude).map { .success($0) },
-            codex: cache.load(.codex).map { .success($0) },
+            claude: ServiceState(accounts: store.load(.claude)),
+            codex: ServiceState(accounts: store.load(.codex)),
             fetchedAt: .distantPast
         )
         self.pollingInterval = Self.loadPersistedInterval()
@@ -72,32 +70,30 @@ final class UsageViewModel {
         async let codex = fetch(from: codexProvider, logger: .codex)
 
         let (c, x) = await (claude, codex)
-        var errors: [ServiceBrand: DomainError] = [:]
         snapshot = UsageSnapshot(
-            claude: applyCache(c, for: .claude, errors: &errors),
-            codex: applyCache(x, for: .codex, errors: &errors),
+            claude: apply(c, to: snapshot.claude, for: .claude),
+            codex: apply(x, to: snapshot.codex, for: .codex),
             fetchedAt: Date()
         )
-        refreshErrors = errors
     }
 
-    /// 成功したら保存し、失敗したら前回の値があればそれを返す。
-    private func applyCache(
-        _ result: Result<ServiceUsage, DomainError>,
-        for brand: ServiceBrand,
-        errors: inout [ServiceBrand: DomainError]
-    ) -> Result<ServiceUsage, DomainError> {
+    /// 成功したらそのアカウントを先頭に上書きして保存する。失敗したら覚えている値は残してエラーだけ記録する。
+    private func apply(
+        _ result: Result<AccountUsage, DomainError>,
+        to state: ServiceState,
+        for brand: ServiceBrand
+    ) -> ServiceState {
         switch result {
-        case .success(let usage):
-            cache.save(usage, for: brand)
-            return result
+        case .success(let account):
+            let accounts = [account] + state.accounts.filter { $0.email != account.email }
+            store.save(accounts, for: brand)
+            return ServiceState(accounts: accounts, error: nil)
         case .failure(let error):
-            errors[brand] = error
-            return cache.load(brand).map { .success($0) } ?? result
+            return ServiceState(accounts: state.accounts, error: error)
         }
     }
 
-    private func fetch(from provider: UsageProvider, logger: Logger) async -> Result<ServiceUsage, DomainError> {
+    private func fetch(from provider: UsageProvider, logger: Logger) async -> Result<AccountUsage, DomainError> {
         do {
             return .success(try await provider.fetch())
         } catch let err as DomainError {

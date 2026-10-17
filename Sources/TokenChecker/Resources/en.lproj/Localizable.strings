@@ -1,3 +1,5 @@
+"account.fetched_at" = "Fetched: %@";
+"account.reset_done" = "reset";
 "error.anthropic_http" = "Anthropic API error (status %d)";
 "error.anthropic_rate_limited" = "Anthropic API rate limit reached (429). Waiting until the next polling interval.";
 "error.anthropic_rate_limited_with_retry" = "Anthropic API rate limit reached. Retrying automatically in about %d min.";

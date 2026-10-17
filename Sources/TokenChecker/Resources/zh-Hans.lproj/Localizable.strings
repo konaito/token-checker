@@ -1,3 +1,5 @@
+"account.fetched_at" = "获取：%@";
+"account.reset_done" = "已重置";
 "error.anthropic_http" = "Anthropic API 错误（状态 %d）";
 "error.anthropic_rate_limited" = "Anthropic API 已达到速率限制（429）。将等到下次轮询再试。";
 "error.anthropic_rate_limited_with_retry" = "Anthropic API 已达到速率限制。约 %d 分钟后自动重试。";

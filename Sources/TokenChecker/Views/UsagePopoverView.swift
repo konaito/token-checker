@@ -32,7 +32,7 @@ struct UsagePopoverView: View {
     private func serviceSection(_ brand: ServiceBrand) -> some View {
         ServiceSectionView(
             brand: brand,
-            result: viewModel.snapshot.result(for: brand),
+            state: viewModel.snapshot.state(for: brand),
             language: language,
             loginAction: { viewModel.openLogin(brand) }
         )
@@ -43,7 +43,7 @@ struct UsagePopoverView: View {
         let time = L10n.shortTime(viewModel.snapshot.fetchedAt, language: language)
         var text = L10n.format("footer.updated_at", language: language, time)
         let errors = [ServiceBrand.claude, .codex].compactMap { brand in
-            viewModel.refreshErrors[brand].map { "\(brand.title): \($0.localizedDescription(language: language))" }
+            viewModel.snapshot.state(for: brand).error.map { "\(brand.title): \($0.localizedDescription(language: language))" }
         }
         if !errors.isEmpty {
             text += " " + L10n.tr("footer.update_error", language: language)

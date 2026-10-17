@@ -18,6 +18,15 @@ enum L10n {
         return formatter.string(from: date)
     }
 
+    /// 表示言語に合わせた短い日時表記 (例: "2026/10/18 5:13")。
+    static func shortDateTime(_ date: Date, language: AppLanguage) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = language.locale
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
     private static func bundle(for language: AppLanguage) -> Bundle {
         guard let path = Bundle.module.path(forResource: language.resourceName, ofType: "lproj"),
               let bundle = Bundle(path: path) else {
