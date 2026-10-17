@@ -6,6 +6,10 @@ struct ServiceSectionView: View {
     let state: ServiceState
     let language: AppLanguage
     let loginAction: () -> Void
+    /// 切り替え中のアカウント。その行にスピナーを出し、ほかの行は押せなくする。
+    let switchingEmail: String?
+    let switchError: DomainError?
+    let switchAction: (String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -42,6 +46,12 @@ struct ServiceSectionView: View {
                         inactiveRow(account)
                     }
                 }
+                if let switchError {
+                    Text(switchError.localizedDescription(language: language))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             } else if let error = state.error {
                 errorBlock(error)
             } else {
@@ -52,21 +62,33 @@ struct ServiceSectionView: View {
         }
     }
 
-    /// 過去にアクティブだったアカウント。最後に取得できた値を 1 行で出す。
+    /// 過去にアクティブだったアカウント。最後に取得できた値を 1 行で出し、クリックで切り替える。
     private func inactiveRow(_ account: AccountUsage) -> some View {
-        HStack {
-            Text(account.email)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-            Spacer()
-            Text(summary(account.usage))
-                .font(.system(size: 10))
-                .foregroundStyle(.tertiary)
-                .lineLimit(1)
+        Button {
+            switchAction(account.email)
+        } label: {
+            HStack {
+                Text(account.email)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer()
+                if switchingEmail == account.email {
+                    ProgressView().controlSize(.mini)
+                } else {
+                    Text(summary(account.usage))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+            .contentShape(Rectangle())
         }
-        .help(L10n.format("account.fetched_at", language: language, L10n.shortDateTime(account.fetchedAt, language: language)))
+        .buttonStyle(.plain)
+        .disabled(switchingEmail != nil)
+        .help(L10n.tr("account.switch_hint", language: language) + "\n"
+              + L10n.format("account.fetched_at", language: language, L10n.shortDateTime(account.fetchedAt, language: language)))
     }
 
     /// 「5時間 28% · 週次 26%」。リセット時刻を過ぎた枠は古い値を出さず「リセット済」にする。

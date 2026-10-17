@@ -16,6 +16,8 @@ enum DomainError: Error, Equatable, LocalizedError, Sendable {
     case codexDaemonTimeout
     case codexDaemonFailed(exitCode: Int32)
     case codexDaemonSpawnFailed(String)
+    case accountSwitchToolNotFound(String)
+    case accountSwitchFailed(String)
 
     var errorDescription: String? {
         localizedDescription(language: .default)
@@ -57,6 +59,10 @@ enum DomainError: Error, Equatable, LocalizedError, Sendable {
             return L10n.format("error.codex_daemon_failed", language: language, exitCode)
         case .codexDaemonSpawnFailed(let detail):
             return L10n.format("error.codex_daemon_spawn_failed", language: language, detail)
+        case .accountSwitchToolNotFound(let command):
+            return L10n.format("error.account_switch_tool_not_found", language: language, command)
+        case .accountSwitchFailed(let detail):
+            return L10n.format("error.account_switch_failed", language: language, detail)
         }
     }
 }

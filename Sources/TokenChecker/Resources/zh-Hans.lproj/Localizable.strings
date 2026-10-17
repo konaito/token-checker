@@ -1,5 +1,8 @@
 "account.fetched_at" = "获取：%@";
 "account.reset_done" = "已重置";
+"account.switch_hint" = "点击切换到此账户";
+"error.account_switch_failed" = "切换失败：%@";
+"error.account_switch_tool_not_found" = "未找到 `%@`。请安装 account-switcher (berkboz/account-switcher)。";
 "error.anthropic_http" = "Anthropic API 错误（状态 %d）";
 "error.anthropic_rate_limited" = "Anthropic API 已达到速率限制（429）。将等到下次轮询再试。";
 "error.anthropic_rate_limited_with_retry" = "Anthropic API 已达到速率限制。约 %d 分钟后自动重试。";

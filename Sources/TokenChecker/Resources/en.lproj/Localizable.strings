@@ -1,5 +1,8 @@
 "account.fetched_at" = "Fetched: %@";
 "account.reset_done" = "reset";
+"account.switch_hint" = "Click to switch to this account";
+"error.account_switch_failed" = "Switch failed: %@";
+"error.account_switch_tool_not_found" = "`%@` not found. Install account-switcher (berkboz/account-switcher).";
 "error.anthropic_http" = "Anthropic API error (status %d)";
 "error.anthropic_rate_limited" = "Anthropic API rate limit reached (429). Waiting until the next polling interval.";
 "error.anthropic_rate_limited_with_retry" = "Anthropic API rate limit reached. Retrying automatically in about %d min.";

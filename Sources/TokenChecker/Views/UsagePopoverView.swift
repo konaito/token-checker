@@ -34,7 +34,10 @@ struct UsagePopoverView: View {
             brand: brand,
             state: viewModel.snapshot.state(for: brand),
             language: language,
-            loginAction: { viewModel.openLogin(brand) }
+            loginAction: { viewModel.openLogin(brand) },
+            switchingEmail: viewModel.switchingEmail,
+            switchError: viewModel.switchErrors[brand],
+            switchAction: { email in Task { await viewModel.switchAccount(brand, to: email) } }
         )
     }
 
