@@ -5,31 +5,27 @@ struct UsagePopoverView: View {
     @Bindable var viewModel: UsageViewModel
     @Bindable var languageStore: LanguageStore
     @ObservedObject var launchAtLogin: LaunchAtLoginStore
+    @State private var isShowingSettings = false
 
     private var language: AppLanguage { languageStore.selectedLanguage }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            header
-
             serviceSection(.claude)
             Divider()
             serviceSection(.codex)
 
             Divider()
-            settingsBlock
-            Divider()
             footer
         }
         .padding(16)
         .frame(width: 320)
-    }
-
-    private var header: some View {
-        HStack {
-            Text("Token Checker")
-                .font(.system(size: 14, weight: .semibold))
-            Spacer()
+        .sheet(isPresented: $isShowingSettings) {
+            SettingsView(
+                viewModel: viewModel,
+                languageStore: languageStore,
+                launchAtLogin: launchAtLogin
+            )
         }
     }
 
@@ -42,64 +38,26 @@ struct UsagePopoverView: View {
         )
     }
 
-    private var settingsBlock: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            settingRow("settings.refresh_interval") {
-                Picker("", selection: $viewModel.pollingInterval) {
-                    ForEach(PollingInterval.allCases) { interval in
-                        Text(interval.label(language: language)).tag(interval)
-                    }
-                }
-                .labelsHidden()
-                .fixedSize()
-            }
-
-            settingRow("settings.language") {
-                Picker("", selection: $languageStore.selectedLanguage) {
-                    ForEach(AppLanguage.allCases) { option in
-                        Text(L10n.tr(option.displayKey, language: option)).tag(option)
-                    }
-                }
-                .labelsHidden()
-                .fixedSize()
-            }
-
-            settingRow("settings.launch_at_login") {
-                Toggle("", isOn: Binding(
-                    get: { launchAtLogin.isEnabled },
-                    set: { _ in launchAtLogin.toggle() }
-                ))
-                .labelsHidden()
-                .toggleStyle(.switch)
-                .controlSize(.mini)
-            }
+    /// 「更新: 5:13」。取得に失敗したサービスがあれば「(更新エラー)」を付け、詳細はツールチップに出す。
+    private var updatedAtLabel: some View {
+        let time = L10n.shortTime(viewModel.snapshot.fetchedAt, language: language)
+        var text = L10n.format("footer.updated_at", language: language, time)
+        let errors = [ServiceBrand.claude, .codex].compactMap { brand in
+            viewModel.refreshErrors[brand].map { "\(brand.title): \($0.localizedDescription(language: language))" }
         }
-    }
-
-    /// 左にラベル、右に操作部品を置く設定行。
-    private func settingRow<Control: View>(
-        _ labelKey: String,
-        @ViewBuilder control: () -> Control
-    ) -> some View {
-        HStack {
-            Text(L10n.tr(labelKey, language: language))
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-            Spacer()
-            control()
+        if !errors.isEmpty {
+            text += " " + L10n.tr("footer.update_error", language: language)
         }
+        return Text(text)
+            .font(.system(size: 10))
+            .foregroundStyle(.tertiary)
+            .help(errors.joined(separator: "\n"))
     }
 
     private var footer: some View {
         HStack {
             if viewModel.snapshot.fetchedAt > .distantPast {
-                Text(L10n.format(
-                    "footer.updated_at",
-                    language: language,
-                    L10n.shortTime(viewModel.snapshot.fetchedAt, language: language)
-                ))
-                    .font(.system(size: 10))
-                    .foregroundStyle(.tertiary)
+                updatedAtLabel
             }
             Spacer()
             Button {
@@ -113,6 +71,14 @@ struct UsagePopoverView: View {
             }
             .buttonStyle(.borderless)
             .help(L10n.tr("footer.refresh_now", language: language))
+
+            Button {
+                isShowingSettings = true
+            } label: {
+                Image(systemName: "gearshape")
+            }
+            .buttonStyle(.borderless)
+            .help(L10n.tr("settings.title", language: language))
 
             Button(L10n.tr("footer.quit", language: language)) {
                 NSApplication.shared.terminate(nil)

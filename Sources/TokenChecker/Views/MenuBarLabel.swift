@@ -23,7 +23,9 @@ struct MenuBarLabel: View {
             item(for: .codex)
         }
         .padding(.horizontal, 2)
-        .foregroundStyle(Color.primary)
+        // ImageRenderer はメニューバーの外観を引き継がずライトモードの黒で焼くため、
+        // 暗いメニューバーで見えるよう白に固定する。
+        .foregroundStyle(Color.white)
 
         let renderer = ImageRenderer(content: content)
         // ビットマップは高 DPI で焼いておく．image.size には触らない

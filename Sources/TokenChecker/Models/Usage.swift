@@ -1,7 +1,7 @@
 import Foundation
 
 /// 1 つのレート制限ウィンドウ。
-struct RateLimit: Equatable, Sendable {
+struct RateLimit: Codable, Equatable, Sendable {
     /// 0.0 〜 1.0+。1.0 で 100% 使用。たまに 1.0 を超えることがある（API 側仕様）。
     let utilization: Double
     /// ウィンドウがリセットされる時刻。
@@ -11,7 +11,7 @@ struct RateLimit: Equatable, Sendable {
 }
 
 /// 1 サービス（Claude / Codex）の使用状況。
-struct ServiceUsage: Equatable, Sendable {
+struct ServiceUsage: Codable, Equatable, Sendable {
     let fiveHour: RateLimit?
     let weekly: RateLimit?
     /// Claude のみ。Sonnet 専用 7d ウィンドウ。

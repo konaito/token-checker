@@ -18,6 +18,7 @@
 "error.unknown" = "Unknown cause";
 "footer.quit" = "Quit";
 "footer.refresh_now" = "Refresh now";
+"footer.update_error" = "(update failed)";
 "footer.updated_at" = "Updated: %@";
 "interval.min1" = "1 min";
 "interval.min10" = "10 min";
@@ -30,9 +31,11 @@
 "reset.remaining" = "%@ remaining (%@ reset)";
 "reset.soon" = "Reset soon";
 "service.login.help" = "Log in to %@";
+"settings.done" = "Done";
 "settings.language" = "Display language";
 "settings.launch_at_login" = "Launch at login";
 "settings.refresh_interval" = "Refresh interval";
+"settings.title" = "Settings";
 "status.loading" = "Fetching...";
 "window.five_hour" = "5 hours";
 "window.five_hour.no_data" = "No 5-hour window data";

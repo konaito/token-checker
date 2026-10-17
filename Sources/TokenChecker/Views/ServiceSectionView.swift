@@ -57,20 +57,18 @@ struct ServiceSectionView: View {
     }
 
     private func limitRow(label: String, limit: RateLimit) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(label)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Text("\(limit.percent)%")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(Color.usage(limit.utilization))
-            }
-            ProgressBarView(value: limit.utilization)
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+            Text("\(limit.percent)%")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundStyle(Color.usage(limit.utilization))
+            Text("/ \(label)")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            Spacer()
             Text(resetLabel(limit.resetsAt))
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
+                .lineLimit(1)
         }
     }
 

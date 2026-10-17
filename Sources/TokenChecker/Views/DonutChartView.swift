@@ -27,7 +27,6 @@ struct DonutChartView: View {
             // 中央のロゴ
             Image(systemName: symbolName)
                 .font(.system(size: size * 0.48, weight: .semibold))
-                .foregroundStyle(.primary)
         }
         .frame(width: size, height: size)
     }

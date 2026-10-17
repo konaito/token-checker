@@ -18,6 +18,7 @@
 "error.unknown" = "原因不明";
 "footer.quit" = "退出";
 "footer.refresh_now" = "立即刷新";
+"footer.update_error" = "（更新失败）";
 "footer.updated_at" = "更新：%@";
 "interval.min1" = "1 分钟";
 "interval.min10" = "10 分钟";
@@ -30,9 +31,11 @@
 "reset.remaining" = "剩余 %@（%@ 重置）";
 "reset.soon" = "即将重置";
 "service.login.help" = "登录 %@";
+"settings.done" = "完成";
 "settings.language" = "显示语言";
 "settings.launch_at_login" = "登录时自动启动";
 "settings.refresh_interval" = "刷新间隔";
+"settings.title" = "设置";
 "status.loading" = "获取中...";
 "window.five_hour" = "5 小时";
 "window.five_hour.no_data" = "没有 5 小时窗口数据";

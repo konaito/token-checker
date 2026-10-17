@@ -9,8 +9,12 @@ final class UsageViewModel {
     // nonisolated 化する。providers 自体は immutable なので Sendable 違反は起きない。
     private nonisolated let claudeProvider: UsageProvider
     private nonisolated let codexProvider: UsageProvider
+    private let cache: UsageCache
 
-    var snapshot: UsageSnapshot = .empty
+    /// 表示用の使用状況。取得に失敗したサービスは前回取得できた値で埋める。
+    var snapshot: UsageSnapshot
+    /// 直近の更新で取得に失敗したサービスとそのエラー。
+    var refreshErrors: [ServiceBrand: DomainError] = [:]
     var isLoading: Bool = false
     var pollingInterval: PollingInterval {
         didSet { persistInterval() }
@@ -18,10 +22,18 @@ final class UsageViewModel {
 
     init(
         claudeProvider: UsageProvider = ClaudeUsageProvider(),
-        codexProvider: UsageProvider = CodexUsageProvider()
+        codexProvider: UsageProvider = CodexUsageProvider(),
+        cache: UsageCache = UsageCache()
     ) {
         self.claudeProvider = claudeProvider
         self.codexProvider = codexProvider
+        self.cache = cache
+        // 起動直後は前回の値を出しておき、最初の取得完了で置き換える。
+        self.snapshot = UsageSnapshot(
+            claude: cache.load(.claude).map { .success($0) },
+            codex: cache.load(.codex).map { .success($0) },
+            fetchedAt: .distantPast
+        )
         self.pollingInterval = Self.loadPersistedInterval()
     }
 
@@ -60,7 +72,29 @@ final class UsageViewModel {
         async let codex = fetch(from: codexProvider, logger: .codex)
 
         let (c, x) = await (claude, codex)
-        snapshot = UsageSnapshot(claude: c, codex: x, fetchedAt: Date())
+        var errors: [ServiceBrand: DomainError] = [:]
+        snapshot = UsageSnapshot(
+            claude: applyCache(c, for: .claude, errors: &errors),
+            codex: applyCache(x, for: .codex, errors: &errors),
+            fetchedAt: Date()
+        )
+        refreshErrors = errors
+    }
+
+    /// 成功したら保存し、失敗したら前回の値があればそれを返す。
+    private func applyCache(
+        _ result: Result<ServiceUsage, DomainError>,
+        for brand: ServiceBrand,
+        errors: inout [ServiceBrand: DomainError]
+    ) -> Result<ServiceUsage, DomainError> {
+        switch result {
+        case .success(let usage):
+            cache.save(usage, for: brand)
+            return result
+        case .failure(let error):
+            errors[brand] = error
+            return cache.load(brand).map { .success($0) } ?? result
+        }
     }
 
     private func fetch(from provider: UsageProvider, logger: Logger) async -> Result<ServiceUsage, DomainError> {

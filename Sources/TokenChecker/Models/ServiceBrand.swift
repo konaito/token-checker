@@ -1,7 +1,7 @@
 import Foundation
 
 /// 表示対象のサービス。表示名・アイコン・ログインコマンドをここに集約する。
-enum ServiceBrand {
+enum ServiceBrand: String {
     case claude
     case codex
 
