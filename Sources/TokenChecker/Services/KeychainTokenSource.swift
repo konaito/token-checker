@@ -69,15 +69,7 @@ struct KeychainTokenSource: Sendable {
 private struct KeychainPayload: Decodable {
     let claudeAiOauth: OAuth?
 
-    enum CodingKeys: String, CodingKey {
-        case claudeAiOauth = "claudeAiOauth"
-    }
-
     struct OAuth: Decodable {
         let accessToken: String?
-
-        enum CodingKeys: String, CodingKey {
-            case accessToken = "accessToken"
-        }
     }
 }

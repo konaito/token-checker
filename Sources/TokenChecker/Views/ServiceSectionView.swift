@@ -1,14 +1,7 @@
 import SwiftUI
 
 /// Claude / Codex 1 サービスぶんの詳細セクション。
-/// どのブランドのセクションかを表す。
-enum ServiceBrand {
-    case claude
-    case codex
-}
-
 struct ServiceSectionView: View {
-    let title: String
     let brand: ServiceBrand
     let result: Result<ServiceUsage, DomainError>?
     let language: AppLanguage
@@ -17,10 +10,10 @@ struct ServiceSectionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(spacing: 6) {
-                brandMark
+                Image(systemName: brand.symbolName)
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundStyle(.primary)
-                Text(title)
+                Text(brand.title)
                     .font(.system(size: 13, weight: .semibold))
                 Spacer()
                 Button {
@@ -29,7 +22,7 @@ struct ServiceSectionView: View {
                     Image(systemName: "person.badge.key")
                 }
                 .buttonStyle(.borderless)
-                .help(L10n.format("service.login.help", language: language, title))
+                .help(L10n.format("service.login.help", language: language, brand.title))
             }
 
             switch result {
@@ -72,7 +65,7 @@ struct ServiceSectionView: View {
                 Spacer()
                 Text("\(limit.percent)%")
                     .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(color(for: limit.utilization))
+                    .foregroundStyle(Color.usage(limit.utilization))
             }
             ProgressBarView(value: limit.utilization)
             Text(resetLabel(limit.resetsAt))
@@ -89,7 +82,7 @@ struct ServiceSectionView: View {
             Spacer()
             Text("\(limit.percent)%")
                 .font(.system(size: 11))
-                .foregroundStyle(color(for: limit.utilization))
+                .foregroundStyle(Color.usage(limit.utilization))
         }
     }
 
@@ -111,22 +104,6 @@ struct ServiceSectionView: View {
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
-    @ViewBuilder
-    private var brandMark: some View {
-        switch brand {
-        case .claude:
-            Image(systemName: "sparkles")
-        case .codex:
-            Image(systemName: "terminal.fill")
-        }
-    }
-
-    private func color(for value: Double) -> Color {
-        if value < 0.7 { return .green }
-        if value < 0.85 { return .orange }
-        return .red
-    }
-
     private func resetLabel(_ date: Date) -> String {
         let now = Date()
         if date <= now { return L10n.tr("reset.soon", language: language) }
@@ -137,11 +114,7 @@ struct ServiceSectionView: View {
         f.allowedUnits = [.hour, .minute]
         f.unitsStyle = .abbreviated
         let rel = f.string(from: now, to: date) ?? "—"
-        let formatter = DateFormatter()
-        formatter.locale = language.locale
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-        let absolute = formatter.string(from: date)
+        let absolute = L10n.shortTime(date, language: language)
         return L10n.format("reset.remaining", language: language, rel, absolute)
     }
 }

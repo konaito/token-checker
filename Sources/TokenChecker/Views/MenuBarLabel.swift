@@ -18,29 +18,9 @@ struct MenuBarLabel: View {
     }
 
     private var renderedImage: NSImage? {
-        let claude = utilization(from: viewModel.snapshot.claude)
-        let codex = utilization(from: viewModel.snapshot.codex)
         let content = HStack(spacing: 6) {
-            HStack(spacing: 3) {
-                DonutChartView(
-                    value: claude ?? 0,
-                    size: 20,
-                    lineWidth: 3,
-                    center: .sfSymbol("sparkles", scale: 0.48)
-                )
-                Text(percentLabel(claude))
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            HStack(spacing: 3) {
-                DonutChartView(
-                    value: codex ?? 0,
-                    size: 20,
-                    lineWidth: 3,
-                    center: .sfSymbol("terminal.fill", scale: 0.48)
-                )
-                Text(percentLabel(codex))
-                    .font(.system(size: 11, weight: .semibold))
-            }
+            item(for: .claude)
+            item(for: .codex)
         }
         .padding(.horizontal, 2)
         .foregroundStyle(Color.primary)
@@ -53,6 +33,15 @@ struct MenuBarLabel: View {
         guard let image = renderer.nsImage else { return nil }
         image.isTemplate = false
         return image
+    }
+
+    private func item(for brand: ServiceBrand) -> some View {
+        let value = utilization(from: viewModel.snapshot.result(for: brand))
+        return HStack(spacing: 3) {
+            DonutChartView(value: value ?? 0, size: 20, lineWidth: 3, symbolName: brand.symbolName)
+            Text(percentLabel(value))
+                .font(.system(size: 11, weight: .semibold))
+        }
     }
 
     private func utilization(from result: Result<ServiceUsage, DomainError>?) -> Double? {

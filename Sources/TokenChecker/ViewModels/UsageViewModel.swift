@@ -56,29 +56,18 @@ final class UsageViewModel {
         isLoading = true
         defer { isLoading = false }
 
-        async let claude = fetchClaude()
-        async let codex = fetchCodex()
+        async let claude = fetch(from: claudeProvider, logger: .claude)
+        async let codex = fetch(from: codexProvider, logger: .codex)
 
         let (c, x) = await (claude, codex)
         snapshot = UsageSnapshot(claude: c, codex: x, fetchedAt: Date())
     }
 
-    private func fetchClaude() async -> Result<ServiceUsage, DomainError> {
+    private func fetch(from provider: UsageProvider, logger: Logger) async -> Result<ServiceUsage, DomainError> {
         do {
-            return .success(try await claudeProvider.fetch())
+            return .success(try await provider.fetch())
         } catch let err as DomainError {
-            Logger.claude.error("fetch failed: \(err.localizedDescription)")
-            return .failure(err)
-        } catch {
-            return .failure(.network(error.localizedDescription))
-        }
-    }
-
-    private func fetchCodex() async -> Result<ServiceUsage, DomainError> {
-        do {
-            return .success(try await codexProvider.fetch())
-        } catch let err as DomainError {
-            Logger.codex.error("fetch failed: \(err.localizedDescription)")
+            logger.error("fetch failed: \(err.localizedDescription)")
             return .failure(err)
         } catch {
             return .failure(.network(error.localizedDescription))
@@ -87,28 +76,12 @@ final class UsageViewModel {
 
     // MARK: - ログインボタン
 
-    /// どのサービスを再ログインするかは enum 型で表現する。
-    /// 任意文字列を AppleScript に渡せないようにしてインジェクションを「型として」不能にする。
-    enum LoginTarget {
-        case claude
-        case codex
-
-        var command: String {
-            switch self {
-            case .claude: return "claude login"
-            case .codex:  return "codex login"
-            }
-        }
-    }
-
-    func openClaudeLogin() { spawnLogin(.claude) }
-    func openCodexLogin()  { spawnLogin(.codex) }
-
-    private func spawnLogin(_ target: LoginTarget) {
+    /// ターミナルを開いて `brand.loginCommand` を実行する。
+    func openLogin(_ brand: ServiceBrand) {
         let script = """
         tell application "Terminal"
             activate
-            do script "\(target.command)"
+            do script "\(brand.loginCommand)"
         end tell
         """
         let process = Process()

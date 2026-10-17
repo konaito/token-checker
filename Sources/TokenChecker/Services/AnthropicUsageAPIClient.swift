@@ -43,8 +43,8 @@ struct AnthropicUsageAPIClient: Sendable {
             throw DomainError.anthropicUnauthorized
         case 429:
             // Retry-After ヘッダがあれば秒数を取り出してユーザに伝える
-            let retryAfter = (http.value(forHTTPHeaderField: "Retry-After")
-                              ?? http.value(forHTTPHeaderField: "retry-after"))
+            // (value(forHTTPHeaderField:) はヘッダ名の大文字小文字を区別しない)
+            let retryAfter = http.value(forHTTPHeaderField: "Retry-After")
                 .flatMap(TimeInterval.init)
             throw DomainError.anthropicRateLimited(retryAfter: retryAfter)
         default:

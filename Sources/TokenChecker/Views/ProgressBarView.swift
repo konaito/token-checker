@@ -10,17 +10,10 @@ struct ProgressBarView: View {
                 RoundedRectangle(cornerRadius: height / 2)
                     .fill(Color.gray.opacity(0.2))
                 RoundedRectangle(cornerRadius: height / 2)
-                    .fill(color)
-                    .frame(width: geo.size.width * clamped)
+                    .fill(Color.usage(value))
+                    .frame(width: geo.size.width * value.clampedToUnit)
             }
         }
         .frame(height: height)
-    }
-
-    private var clamped: Double { min(max(value, 0), 1) }
-    private var color: Color {
-        if value < 0.7 { return .green }
-        if value < 0.85 { return .orange }
-        return .red
     }
 }

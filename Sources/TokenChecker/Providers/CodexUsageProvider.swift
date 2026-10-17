@@ -11,24 +11,22 @@ final class CodexUsageProvider: UsageProvider, @unchecked Sendable {
 
     func fetch() async throws -> ServiceUsage {
         do {
-            try await client.start()
-            let dto = try await client.readRateLimits()
-            return ServiceUsage(
-                fiveHour: dto.fiveHourRateLimit(),
-                weekly: dto.weeklyRateLimit(),
-                weeklySonnet: nil
-            )
+            return try await readUsage()
         } catch DomainError.codexProcessExited {
             // 一度落ちていたら再起動して再試行
             await client.stop()
-            try await client.start()
-            let dto = try await client.readRateLimits()
-            return ServiceUsage(
-                fiveHour: dto.fiveHourRateLimit(),
-                weekly: dto.weeklyRateLimit(),
-                weeklySonnet: nil
-            )
+            return try await readUsage()
         }
+    }
+
+    private func readUsage() async throws -> ServiceUsage {
+        try await client.start()
+        let dto = try await client.readRateLimits()
+        return ServiceUsage(
+            fiveHour: dto.fiveHourRateLimit(),
+            weekly: dto.weeklyRateLimit(),
+            weeklySonnet: nil
+        )
     }
 
     func shutdown() async {

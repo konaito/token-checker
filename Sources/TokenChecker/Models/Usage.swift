@@ -25,4 +25,11 @@ struct UsageSnapshot: Equatable, Sendable {
     let fetchedAt: Date
 
     static let empty = UsageSnapshot(claude: nil, codex: nil, fetchedAt: .distantPast)
+
+    func result(for brand: ServiceBrand) -> Result<ServiceUsage, DomainError>? {
+        switch brand {
+        case .claude: return claude
+        case .codex:  return codex
+        }
+    }
 }

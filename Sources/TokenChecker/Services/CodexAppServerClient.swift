@@ -62,7 +62,7 @@ actor CodexAppServerClient {
                 Logger.codex.notice("launch attempt \(String(describing: attempt), privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
                 lastError = error
                 // 中途半端な状態 (process が立っている / pipes が開いている) を確実に
-                // 掃除してから次の attempt に移る。handleProcessTerminated が先に
+                // 掃除してから次の attempt に移る。releaseProcess が先に
                 // 走っていれば stop() はほぼ no-op だが安全側で常に呼ぶ。
                 stop()
                 continue
@@ -106,7 +106,7 @@ actor CodexAppServerClient {
         proc.standardError = errP
 
         proc.terminationHandler = { [weak self] _ in
-            Task { await self?.handleProcessTerminated() }
+            Task { await self?.releaseProcess() }
         }
 
         outP.fileHandleForReading.readabilityHandler = { [weak self] handle in
@@ -131,28 +131,20 @@ actor CodexAppServerClient {
         self.stderr = errP
 
         _ = try await request(method: "initialize", params: InitializeParams.defaultClient)
-        try send(method: "initialized", params: EmptyParams(), isNotification: true)
+        try notify(method: "initialized", params: EmptyParams())
     }
 
     func stop() {
         stdout?.fileHandleForReading.readabilityHandler = nil
         stderr?.fileHandleForReading.readabilityHandler = nil
         // stop() → start() の再起動シーケンスで、旧プロセスの terminationHandler が
-        // 遅延発火 → handleProcessTerminated() が actor に hop → 新プロセスの状態を
+        // 遅延発火 → releaseProcess() が actor に hop → 新プロセスの状態を
         // 破壊する race を防ぐため、terminate より前にハンドラを解除する。
         process?.terminationHandler = nil
         if let p = process, p.isRunning {
             p.terminate()
         }
-        try? stdin?.fileHandleForWriting.close()
-        try? stdout?.fileHandleForReading.close()
-        try? stderr?.fileHandleForReading.close()
-        process = nil
-        stdin = nil
-        stdout = nil
-        stderr = nil
-        lineBuffer.removeAll()
-        failPending(with: DomainError.codexProcessExited)
+        releaseProcess()
     }
 
     // MARK: - RPC methods
@@ -391,12 +383,14 @@ actor CodexAppServerClient {
         return env
     }
 
-    private func send<P: Encodable>(method: String, params: P?, isNotification: Bool = false) throws {
-        guard let stdin else {
-            throw DomainError.codexProcessExited
-        }
-        let id: Int? = isNotification ? nil : { defer { self.nextId += 1 }; return self.nextId }()
-        let envelope = RPCOutbound(method: method, id: id, params: params)
+    /// id なしの通知を送る (レスポンスを待たない)。
+    private func notify<P: Encodable>(method: String, params: P) throws {
+        try write(RPCOutbound(method: method, id: nil, params: params))
+    }
+
+    /// 1 行の JSON として stdin に書き込む。actor 内で同期的に実行される (hop なし)。
+    private func write<P: Encodable>(_ envelope: RPCOutbound<P>) throws {
+        guard let stdin else { throw DomainError.codexProcessExited }
         var data = try JSONEncoder().encode(envelope)
         data.append(0x0A)
         stdin.fileHandleForWriting.write(data)
@@ -411,16 +405,12 @@ actor CodexAppServerClient {
     /// - タイムアウト Task が `cancelPending(id:)` を呼ぶことで継続が確実に解決される
     /// - レスポンスが先に来た場合は `defer` でタイムアウト Task を cancel して終了
     private func request<P: Encodable>(method: String, params: P) async throws -> RPCInbound {
-        guard let stdin else { throw DomainError.codexProcessExited }
+        guard stdin != nil else { throw DomainError.codexProcessExited }
         let id = nextId
         nextId += 1
         let timeout = requestTimeout
 
-        // 同期的にエンコードして書き込み（actor 内、hop なし）
-        let envelope = RPCOutbound(method: method, id: id, params: params)
-        var data = try JSONEncoder().encode(envelope)
-        data.append(0x0A)
-        stdin.fileHandleForWriting.write(data)
+        try write(RPCOutbound(method: method, id: id, params: params))
 
         // タイムアウト監視タスクを別途起動
         let timeoutTask = Task { [weak self] in
@@ -464,7 +454,7 @@ actor CodexAppServerClient {
 
     private func handleStdout(_ data: Data) {
         if data.isEmpty {
-            handleProcessTerminated()
+            releaseProcess()
             return
         }
         for line in lineBuffer.append(data) {
@@ -484,11 +474,13 @@ actor CodexAppServerClient {
         }
     }
 
-    private func handleProcessTerminated() {
+    /// プロセス終了時の後片付け。stop() と、子プロセスの終了検知 (terminationHandler /
+    /// stdout の EOF) の両方から呼ばれる。
+    private func releaseProcess() {
         stdout?.fileHandleForReading.readabilityHandler = nil
         stderr?.fileHandleForReading.readabilityHandler = nil
-        // 子プロセスの異常終了 (外部 kill / OOM 等) でこの経路を通る場合、
-        // stop() を介さないため Pipe の fd を明示的に閉じる必要がある。
+        // 子プロセスの異常終了 (外部 kill / OOM 等) でこの経路を通る場合も
+        // Pipe の fd を明示的に閉じる必要がある。
         // 閉じないと CodexUsageProvider の再起動ループで fd が累積し枯渇する。
         try? stdin?.fileHandleForWriting.close()
         try? stdout?.fileHandleForReading.close()

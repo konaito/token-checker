@@ -12,23 +12,9 @@ struct UsagePopoverView: View {
         VStack(alignment: .leading, spacing: 12) {
             header
 
-            ServiceSectionView(
-                title: "Claude Code",
-                brand: .claude,
-                result: viewModel.snapshot.claude,
-                language: language,
-                loginAction: { viewModel.openClaudeLogin() }
-            )
-
+            serviceSection(.claude)
             Divider()
-
-            ServiceSectionView(
-                title: "Codex",
-                brand: .codex,
-                result: viewModel.snapshot.codex,
-                language: language,
-                loginAction: { viewModel.openCodexLogin() }
-            )
+            serviceSection(.codex)
 
             Divider()
             settingsBlock
@@ -47,13 +33,18 @@ struct UsagePopoverView: View {
         }
     }
 
+    private func serviceSection(_ brand: ServiceBrand) -> some View {
+        ServiceSectionView(
+            brand: brand,
+            result: viewModel.snapshot.result(for: brand),
+            language: language,
+            loginAction: { viewModel.openLogin(brand) }
+        )
+    }
+
     private var settingsBlock: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack {
-                Text(L10n.tr("settings.refresh_interval", language: language))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Spacer()
+            settingRow("settings.refresh_interval") {
                 Picker("", selection: $viewModel.pollingInterval) {
                     ForEach(PollingInterval.allCases) { interval in
                         Text(interval.label(language: language)).tag(interval)
@@ -63,11 +54,7 @@ struct UsagePopoverView: View {
                 .fixedSize()
             }
 
-            HStack {
-                Text(L10n.tr("settings.language", language: language))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Spacer()
+            settingRow("settings.language") {
                 Picker("", selection: $languageStore.selectedLanguage) {
                     ForEach(AppLanguage.allCases) { option in
                         Text(L10n.tr(option.displayKey, language: option)).tag(option)
@@ -77,11 +64,7 @@ struct UsagePopoverView: View {
                 .fixedSize()
             }
 
-            HStack {
-                Text(L10n.tr("settings.launch_at_login", language: language))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                Spacer()
+            settingRow("settings.launch_at_login") {
                 Toggle("", isOn: Binding(
                     get: { launchAtLogin.isEnabled },
                     set: { _ in launchAtLogin.toggle() }
@@ -93,13 +76,27 @@ struct UsagePopoverView: View {
         }
     }
 
+    /// 左にラベル、右に操作部品を置く設定行。
+    private func settingRow<Control: View>(
+        _ labelKey: String,
+        @ViewBuilder control: () -> Control
+    ) -> some View {
+        HStack {
+            Text(L10n.tr(labelKey, language: language))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            Spacer()
+            control()
+        }
+    }
+
     private var footer: some View {
         HStack {
             if viewModel.snapshot.fetchedAt > .distantPast {
                 Text(L10n.format(
                     "footer.updated_at",
                     language: language,
-                    formattedTime(viewModel.snapshot.fetchedAt)
+                    L10n.shortTime(viewModel.snapshot.fetchedAt, language: language)
                 ))
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
@@ -123,13 +120,5 @@ struct UsagePopoverView: View {
             .buttonStyle(.borderless)
             .foregroundStyle(.secondary)
         }
-    }
-
-    private func formattedTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = language.locale
-        formatter.dateStyle = .none
-        formatter.timeStyle = .short
-        return formatter.string(from: date)
     }
 }
