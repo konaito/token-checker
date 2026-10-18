@@ -19,6 +19,14 @@ enum ServiceBrand: String {
         }
     }
 
+    /// アカウント切り替えに使う CLI。berkboz/account-switcher と同じもの。
+    var switchCommand: String {
+        switch self {
+        case .claude: return "cswap"
+        case .codex:  return "codex-auth"
+        }
+    }
+
     /// 任意文字列を AppleScript に渡せないよう、コマンドは enum から引く形にして
     /// インジェクションを「型として」不能にする。
     var loginCommand: String {

@@ -10,10 +10,15 @@ final class UsageViewModel {
     private nonisolated let claudeProvider: UsageProvider
     private nonisolated let codexProvider: UsageProvider
     private let store: AccountUsageStore
+    private let switcher: AccountSwitcher
 
     /// 表示用の使用状況。取得に失敗しても、覚えているアカウントの値はそのまま残す。
     var snapshot: UsageSnapshot
     var isLoading: Bool = false
+    /// 切り替え中のアカウント。nil なら切り替えていない。
+    var switchingEmail: String?
+    /// 直近の切り替えに失敗したサービスとそのエラー。
+    var switchErrors: [ServiceBrand: DomainError] = [:]
     var pollingInterval: PollingInterval {
         didSet { persistInterval() }
     }
@@ -21,11 +26,13 @@ final class UsageViewModel {
     init(
         claudeProvider: UsageProvider = ClaudeUsageProvider(),
         codexProvider: UsageProvider = CodexUsageProvider(),
-        store: AccountUsageStore = AccountUsageStore()
+        store: AccountUsageStore = AccountUsageStore(),
+        switcher: @escaping AccountSwitcher = { try await AccountSwitchCommand.run($0, email: $1) }
     ) {
         self.claudeProvider = claudeProvider
         self.codexProvider = codexProvider
         self.store = store
+        self.switcher = switcher
         // 起動直後は覚えている値を出しておき、最初の取得完了で更新する。
         self.snapshot = UsageSnapshot(
             claude: ServiceState(accounts: store.load(.claude)),
@@ -75,6 +82,23 @@ final class UsageViewModel {
             codex: apply(x, to: snapshot.codex, for: .codex),
             fetchedAt: Date()
         )
+    }
+
+    /// 指定したアカウントに切り替え、新しいアカウントで取り直す。
+    func switchAccount(_ brand: ServiceBrand, to email: String) async {
+        guard switchingEmail == nil else { return }
+        switchingEmail = email
+        switchErrors[brand] = nil
+        defer { switchingEmail = nil }
+        do {
+            try await switcher(brand, email)
+        } catch {
+            let domainError = error as? DomainError ?? .accountSwitchFailed(error.localizedDescription)
+            Logger.app.error("account switch failed: \(domainError.localizedDescription)")
+            switchErrors[brand] = domainError
+            return
+        }
+        await refresh()
     }
 
     /// 成功したらそのアカウントを先頭に上書きして保存する。失敗したら覚えている値は残してエラーだけ記録する。
