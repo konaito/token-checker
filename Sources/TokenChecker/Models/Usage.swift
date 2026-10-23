@@ -16,6 +16,9 @@ struct ServiceUsage: Codable, Equatable, Sendable {
     let weekly: RateLimit?
     /// Claude のみ。Sonnet 専用 7d ウィンドウ。
     let weeklySonnet: RateLimit?
+
+    /// メニューバーに出す代表値。5h ウィンドウがないプラン（Codex の prolite など）は週次で代用する。
+    var headline: RateLimit? { fiveHour ?? weekly }
 }
 
 /// あるアカウントがアクティブだったときに取得できた最新の使用状況。

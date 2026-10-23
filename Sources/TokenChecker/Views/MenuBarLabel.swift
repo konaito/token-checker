@@ -38,7 +38,7 @@ struct MenuBarLabel: View {
     }
 
     private func item(for brand: ServiceBrand) -> some View {
-        let value = viewModel.snapshot.state(for: brand).active?.usage.fiveHour?.utilization
+        let value = viewModel.snapshot.state(for: brand).active?.usage.headline?.utilization
         return HStack(spacing: 3) {
             DonutChartView(value: value ?? 0, size: 20, lineWidth: 3, symbolName: brand.symbolName)
             Text(percentLabel(value))
